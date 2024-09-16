@@ -9,63 +9,58 @@ public class GreedyAlgorithm
 	/// Partitions a graph into <paramref name="k"/> subsets using a greedy algorithm.
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
-	/// <param name="k">The number of partitions.</param>
-	/// <returns>A serialized representation of the graph partitions.</returns>
-	public static string Partition(double[,] adjacencyMatrix, int k)
-	{
-		int n = adjacencyMatrix.GetLength(0);
-
-		var partitions = GreedyPartition(adjacencyMatrix, n, k);
-
-		return Common.Common.GetSerializedMatrix(partitions);
-	}
-
-	/// <summary>
-	/// Performs a greedy partitioning of the graph.
-	/// </summary>
-	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	/// <param name="n">The number of vertices in the graph.</param>
 	/// <param name="k">The number of partitions.</param>
 	/// <returns>A list of partitions, each partition being a list of vertices.</returns>
-	private static List<List<int>> GreedyPartition(double[,] adjacencyMatrix, int n, int k)
+	public static string Partition(double[,] adjacencyMatrix, int k)
 	{
+		int n = adjacencyMatrix.GetLength(0);
 		List<List<int>> partitions = new();
 		for (int i = 0; i < k; i++)
-			partitions.Add(new List<int>());
+			partitions.Add(new());
+
+		int baseSize = n / k;
+		int extraVertices = n % k;
+		var partitionSizes = new int[k];
+		for (int i = 0; i < k; i++)
+			partitionSizes[i] = baseSize + (i < extraVertices ? 1 : 0);
 
 		int startVertex = FindPseudoperipheralVertex(adjacencyMatrix, n);
+		List<int> pseudoperipheralVertices = new() { startVertex };
 		partitions[0].Add(startVertex);
 		var usedVertices = new HashSet<int> { startVertex };
 
-		FillPartition(adjacencyMatrix, partitions[0], usedVertices, n / k);
+		FillPartition(adjacencyMatrix, partitions[0], usedVertices, partitionSizes[0]);
 
 		for (int i = 1; i < k; i++)
 		{
-			int boundaryVertex = FindBoundaryVertex(adjacencyMatrix, usedVertices);
-			if (boundaryVertex == -1) continue;
+			startVertex = GetFarthestVertex(adjacencyMatrix, pseudoperipheralVertices);
+			pseudoperipheralVertices.Add(startVertex);
+			if (startVertex == -1)
+				continue;
 
-			partitions[i].Add(boundaryVertex);
-			usedVertices.Add(boundaryVertex);
-			FillPartition(adjacencyMatrix, partitions[i], usedVertices, n / k);
+			partitions[i].Add(startVertex);
+			usedVertices.Add(startVertex);
+			FillPartition(adjacencyMatrix, partitions[i], usedVertices, partitionSizes[i]);
 		}
 
 		ImprovePartitioning(adjacencyMatrix, partitions);
 
-		return partitions;
+		return Common.Common.GetSerializedMatrix(partitions);
 	}
 
 	/// <summary>
 	/// Finds a pseudoperipheral vertex of the graph, which is a vertex with the greatest distance from other vertices.
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
-	/// <param name="k">The number of vertices (size of the graph).</param>
+	/// <param name="n">The number of vertices (size of the graph).</param>
 	/// <returns>The pseudoperipheral vertex.</returns>
-	private static int FindPseudoperipheralVertex(double[,] adjacencyMatrix, int k)
+	private static int FindPseudoperipheralVertex(double[,] adjacencyMatrix, int n)
 	{
 		int maxDist = -1;
 		int pseudoperipheralVertex = 0;
 
-		for (int i = 0; i < k; i++)
+		for (int i = 0; i < n; i++)
 		{
 			int dist = BFS(adjacencyMatrix, i, out _);
 			if (dist > maxDist)
@@ -87,8 +82,8 @@ public class GreedyAlgorithm
 	/// <returns>The maximum distance from the starting vertex to any other vertex.</returns>
 	private static int BFS(double[,] adjacencyMatrix, int startVertex, out int farthestVertex)
 	{
-		int numVertices = adjacencyMatrix.GetLength(0);
-		var distances = new int[numVertices];
+		int n = adjacencyMatrix.GetLength(0);
+		var distances = new int[n];
 		Array.Fill(distances, -1);
 
 		var queue = new Queue<int>();
@@ -101,7 +96,7 @@ public class GreedyAlgorithm
 		while (queue.Count > 0)
 		{
 			int vertex = queue.Dequeue();
-			for (int neighbor = 0; neighbor < numVertices; neighbor++)
+			for (int neighbor = 0; neighbor < n; neighbor++)
 			{
 				if (adjacencyMatrix[vertex, neighbor] > 0 && distances[neighbor] == -1)
 				{
@@ -130,21 +125,36 @@ public class GreedyAlgorithm
 	private static void FillPartition(double[,] adjacencyMatrix, List<int> partition, HashSet<int> usedVertices, int targetSize)
 	{
 		var queue = new Queue<int>(partition);
-		while (partition.Count < targetSize && queue.Count > 0)
+		do
 		{
-			int vertex = queue.Dequeue();
-			for (int neighbor = 0; neighbor < adjacencyMatrix.GetLength(0); neighbor++)
+			var vertex = queue.Dequeue();
+			var adjacentVertices = GetAdjacentVertices(adjacencyMatrix, vertex);
+			foreach (var neighbor in adjacentVertices)
 			{
-				if (adjacencyMatrix[vertex, neighbor] > 0 && !usedVertices.Contains(neighbor))
+				if (!usedVertices.Contains(neighbor))
 				{
 					partition.Add(neighbor);
 					usedVertices.Add(neighbor);
 					queue.Enqueue(neighbor);
-
-					if (partition.Count >= targetSize)
-						break;
 				}
+
+				if (partition.Count >= targetSize)
+					return;
 			}
+
+		} while (partition.Count < targetSize && queue.Count > 0);
+
+		if (partition.Count < targetSize)
+		{
+			do
+			{
+				var boundaryVertex = FindBoundaryVertex(adjacencyMatrix, usedVertices);
+				if (boundaryVertex == -1)
+					break;
+
+				partition.Add(boundaryVertex);
+				usedVertices.Add(boundaryVertex);
+			} while (partition.Count < targetSize);
 		}
 	}
 
@@ -156,9 +166,11 @@ public class GreedyAlgorithm
 	/// <returns>A boundary vertex if found, otherwise -1.</returns>
 	private static int FindBoundaryVertex(double[,] adjacencyMatrix, HashSet<int> usedVertices)
 	{
+		int n = adjacencyMatrix.GetLength(0);
+
 		foreach (var vertex in usedVertices)
 		{
-			for (int neighbor = 0; neighbor < adjacencyMatrix.GetLength(0); neighbor++)
+			for (int neighbor = 0; neighbor < n; neighbor++)
 			{
 				if (adjacencyMatrix[vertex, neighbor] > 0 && !usedVertices.Contains(neighbor))
 					return neighbor;
@@ -178,38 +190,38 @@ public class GreedyAlgorithm
 		bool improved;
 		int iteration = 0;
 		int maxIterations = 100;
+		int currentCutEdges = CalculateTotalCutEdges(adjacencyMatrix, partitions);
+		List<List<int>> originalPartitions = ClonePartitions(partitions);
 
 		do
 		{
 			improved = false;
-			foreach (var partition in partitions)
+
+			for (int i = 0; i < originalPartitions.Count; i++)
 			{
-				var candidates = partition.ToList();
-				foreach (var vertex in candidates)
+				for (int j = i + 1; j < originalPartitions.Count; j++)
 				{
-					for (int neighbor = 0; neighbor < adjacencyMatrix.GetLength(0); neighbor++)
+					foreach (var u in originalPartitions[i])
 					{
-						if (adjacencyMatrix[vertex, neighbor] > 0)
+						foreach (var v in originalPartitions[j])
 						{
-							int currentPartition = GetPartitionIndex(partitions, vertex);
-							int neighborPartition = GetPartitionIndex(partitions, neighbor);
+							List<List<int>> partitionsCopy = ClonePartitions(originalPartitions);
 
-							if (currentPartition != neighborPartition)
+							partitionsCopy[i].Remove(u);
+							partitionsCopy[i].Add(v);
+							partitionsCopy[j].Remove(v);
+							partitionsCopy[j].Add(u);
+
+							int cutEdges = CalculateTotalCutEdges(adjacencyMatrix, partitionsCopy);
+
+							if (cutEdges < currentCutEdges)
 							{
-								if (neighborPartition >= 0 && neighborPartition < partitions.Count)
-								{
-									MoveVertex(partitions, vertex, neighborPartition);
-									int newEdgeCount = CountSeparatingEdges(adjacencyMatrix, partitions);
-
-									if (newEdgeCount < CountSeparatingEdges(adjacencyMatrix, partitions))
-									{
-										improved = true;
-									}
-									else
-									{
-										MoveVertex(partitions, vertex, currentPartition);
-									}
-								}
+								partitions[i].Remove(u);
+								partitions[i].Add(v);
+								partitions[j].Remove(v);
+								partitions[j].Add(u);
+								currentCutEdges = cutEdges;
+								improved = true;
 							}
 						}
 					}
@@ -217,86 +229,116 @@ public class GreedyAlgorithm
 			}
 
 			iteration++;
-		} while (improved && iteration < maxIterations);
+		} while (iteration < maxIterations && improved);
 	}
 
 	/// <summary>
-	/// Gets the index of the partition containing the specified vertex.
-	/// </summary>
-	/// <param name="partitions">The list of partitions.</param>
-	/// <param name="vertex">The vertex whose partition index is to be found.</param>
-	/// <returns>The index of the partition containing the vertex, or -1 if the vertex is not found in any partition.</returns>
-	private static int GetPartitionIndex(List<List<int>> partitions, int vertex)
-	{
-		for (int i = 0; i < partitions.Count; i++)
-		{
-			if (partitions[i].Contains(vertex))
-				return i;
-		}
-
-		return -1;
-	}
-
-	/// <summary>
-	/// Moves a vertex from its current partition to a target partition, if the target partition index is valid.
-	/// </summary>
-	/// <param name="partitions">The list of partitions.</param>
-	/// <param name="vertex">The vertex to be moved.</param>
-	/// <param name="targetPartition">The index of the target partition.</param>
-	private static void MoveVertex(List<List<int>> partitions, int vertex, int targetPartition)
-	{
-		if (targetPartition < 0 || targetPartition >= partitions.Count)
-		{
-			Console.WriteLine($"Wrong target partition index: {targetPartition}");
-			return;
-		}
-
-		for (int i = 0; i < partitions.Count; i++)
-		{
-			if (partitions[i].Remove(vertex))
-				break;
-		}
-
-		if (targetPartition >= 0 && targetPartition < partitions.Count)
-		{
-			partitions[targetPartition].Add(vertex);
-		}
-	}
-
-	/// <summary>
-	/// Counts the number of edges that separate different partitions in the graph.
+	/// Calculates the total number of cut edges between all partitions.
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
-	/// <param name="partitions">The list of partitions.</param>
-	/// <returns>The number of separating edges.</returns>
-	private static int CountSeparatingEdges(double[,] adjacencyMatrix, List<List<int>> partitions)
+	/// <param name="partitions">The current partitions of the graph.</param>
+	/// <returns>The total number of edges between different partitions.</returns>
+	private static int CalculateTotalCutEdges(double[,] adjacencyMatrix, List<List<int>> partitions)
 	{
-		int count = 0;
-		var vertexToPartition = new Dictionary<int, int>();
+		int cutEdges = 0;
 		for (int i = 0; i < partitions.Count; i++)
 		{
-			foreach (var vertex in partitions[i])
+			for (int j = i + 1; j < partitions.Count; j++)
 			{
-				vertexToPartition[vertex] = i;
+				foreach (var u in partitions[i])
+				{
+					foreach (var v in partitions[j])
+					{
+						if (adjacencyMatrix[u, v] != 0)
+						{
+							cutEdges++;
+						}
+					}
+				}
+			}
+		}
+		return cutEdges;
+	}
+
+	/// <summary>
+	/// Returns a list of all vertices adjacent to a given vertex.
+	/// </summary>
+	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
+	/// <param name="vertex">The vertex for which adjacent vertices are to be found.</param>
+	/// <returns>A list of adjacent vertices.</returns>
+	private static List<int> GetAdjacentVertices(double[,] adjacencyMatrix, int vertex)
+	{
+		List<int> adjacentVertices = new();
+		int n = adjacencyMatrix.GetLength(0);
+
+		for (int neighbor = 0; neighbor < n; neighbor++)
+		{
+			if (adjacencyMatrix[vertex, neighbor] > 0)
+			{
+				adjacentVertices.Add(neighbor);
 			}
 		}
 
-		for (int i = 0; i < adjacencyMatrix.GetLength(0); i++)
+		return adjacentVertices;
+	}
+
+	/// <summary>
+	/// Returns the farthest vertex from a list of given vertices using Breadth-First Search (BFS).
+	/// </summary>
+	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
+	/// <param name="startVertices">The list of starting vertices for finding the farthest vertex.</param>
+	/// <returns>The farthest vertex from any of the startVertices.</returns>
+	private static int GetFarthestVertex(double[,] adjacencyMatrix, List<int> startVertices)
+	{
+		int n = adjacencyMatrix.GetLength(0);
+		var distances = new int[n];
+		Array.Fill(distances, -1);
+
+		var queue = new Queue<int>();
+		foreach (var startVertex in startVertices)
 		{
-			for (int j = 0; j < adjacencyMatrix.GetLength(1); j++)
+			queue.Enqueue(startVertex);
+			distances[startVertex] = 0;
+		}
+
+		int farthestVertex = startVertices[0];
+		int maxDistance = 0;
+
+		while (queue.Count > 0)
+		{
+			int vertex = queue.Dequeue();
+
+			for (int neighbor = 0; neighbor < n; neighbor++)
 			{
-				if (adjacencyMatrix[i, j] > 0)
+				if (adjacencyMatrix[vertex, neighbor] > 0 && distances[neighbor] == -1)
 				{
-					if (vertexToPartition.TryGetValue(i, out int partitionI) &&
-						vertexToPartition.TryGetValue(j, out int partitionJ) &&
-						partitionI != partitionJ)
+					distances[neighbor] = distances[vertex] + 1;
+					queue.Enqueue(neighbor);
+
+					if (distances[neighbor] > maxDistance)
 					{
-						count++;
+						maxDistance = distances[neighbor];
+						farthestVertex = neighbor;
 					}
 				}
 			}
 		}
 
-		return count / 2;
+		return farthestVertex;
+	}
+
+	/// <summary>
+	/// Creates a deep copy of the list of partitions.
+	/// </summary>
+	/// <param name="partitions">The list of partitions to clone.</param>
+	/// <returns>A deep copy of the partitions list.</returns>
+	private static List<List<int>> ClonePartitions(List<List<int>> partitions)
+	{
+		List<List<int>> copy = new List<List<int>>();
+		foreach (var partition in partitions)
+		{
+			copy.Add(new List<int>(partition));
+		}
+		return copy;
 	}
 }

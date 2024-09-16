@@ -31,30 +31,15 @@ public class GeometricAlgorithm
 	/// <summary>
 	/// Generates a list of 2D points from the given graph using the Laplacian matrix and its eigenvectors.
 	/// </summary>
-	/// <param name="graph">The adjacency matrix of the graph.</param>
+	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	/// <param name="weights">The weights of the edges in the graph.</param>
 	/// <returns>A list of 2D points representing the vertices of the graph.</returns>
-	private static List<double[]> GeneratePointsFromGraph(double[,] graph, double[,] weights)
+	private static List<double[]> GeneratePointsFromGraph(double[,] adjacencyMatrix, double[,] weights)
 	{
-		int vertexCount = graph.GetLength(0);
-		double[,] laplacianMatrix = new double[vertexCount, vertexCount];
+		int n = adjacencyMatrix.GetLength(0);
+		var laplacianMatrix = GenerateLaplacianMatrix(weights);
 
-		for (int i = 0; i < vertexCount; i++)
-		{
-			double degree = 0;
-			for (int j = 0; j < vertexCount; j++)
-			{
-				if (graph[i, j] == 1)
-				{
-					laplacianMatrix[i, j] = -weights[i, j];
-					degree += weights[i, j];
-				}
-			}
-			laplacianMatrix[i, i] = degree;
-		}
-
-		var matrix = DenseMatrix.OfArray(laplacianMatrix);
-		var evd = matrix.Evd(Symmetricity.Symmetric);
+		var evd = laplacianMatrix.Evd();
 		var eigenValues = evd.EigenValues.Real().ToArray();
 		var eigenVectors = evd.EigenVectors.ToArray();
 
@@ -67,7 +52,7 @@ public class GeometricAlgorithm
 		var selectedIndices = sortedIndices.Skip(1).Take(2).ToArray();
 
 		List<double[]> points = new List<double[]>();
-		for (int i = 0; i < vertexCount; i++)
+		for (int i = 0; i < n; i++)
 		{
 			double[] point = new double[2];
 			for (int j = 0; j < 2; j++)
@@ -162,15 +147,14 @@ public class GeometricAlgorithm
 	/// <returns>A list of lists, where each inner list contains the indices of the points in one of the k partitions.</returns>
 	private static List<List<int>> RecursivePartition(List<double[]> points, int k, double[,] adjacencyMatrix, double[,] weightsMatrix)
 	{
+		if (k == 1)
+			return new List<List<int>> { Enumerable.Range(0, points.Count).ToList() };
+
 		double[] normalVector = ChooseRandomNormalVector(points[0].Length);
-
-		var partitionedResult = PartitionPointsAlongGreatCircle(points, normalVector);
-		var group1 = partitionedResult.Item1;
-		var group2 = partitionedResult.Item2;
-
+		(var group1, var group2) = PartitionPointsAlongCircle(points, normalVector);
 		BalanceSubsets(group1, group2, points);
 
-		List<List<int>> result = new List<List<int>>();
+		List<List<int>> result = new();
 		int k1 = k / 2;
 		int k2 = k - k1;
 
@@ -180,15 +164,8 @@ public class GeometricAlgorithm
 		var partitions1 = RecursivePartition(group1Points, k1, adjacencyMatrix, weightsMatrix);
 		var partitions2 = RecursivePartition(group2Points, k2, adjacencyMatrix, weightsMatrix);
 
-		foreach (var partition in partitions1)
-		{
-			result.Add(partition.Select(index => group1[index]).ToList());
-		}
-
-		foreach (var partition in partitions2)
-		{
-			result.Add(partition.Select(index => group2[index]).ToList());
-		}
+		result.AddRange(partitions1.Select(partition => partition.Select(index => group1[index]).ToList()));
+		result.AddRange(partitions2.Select(partition => partition.Select(index => group2[index]).ToList()));
 
 		return result;
 	}
@@ -215,15 +192,15 @@ public class GeometricAlgorithm
 	}
 
 	/// <summary>
-	/// Partitions the given points along a great circle defined by the normal vector.
+	/// Partitions the given points along a circle defined by the normal vector.
 	/// </summary>
 	/// <param name="points">The points to be partitioned.</param>
-	/// <param name="normalVector">The normal vector defining the great circle.</param>
+	/// <param name="normalVector">The normal vector defining the circle.</param>
 	/// <returns>A tuple containing two lists of indices, representing the two partitions.</returns>
-	private static Tuple<List<int>, List<int>> PartitionPointsAlongGreatCircle(List<double[]> points, double[] normalVector)
+	private static Tuple<List<int>, List<int>> PartitionPointsAlongCircle(List<double[]> points, double[] normalVector)
 	{
-		List<int> group1 = new List<int>();
-		List<int> group2 = new List<int>();
+		List<int> group1 = new();
+		List<int> group2 = new();
 
 		double median = points.Select(p => DotProduct(p, normalVector)).Median();
 
@@ -302,5 +279,20 @@ public class GeometricAlgorithm
 			dotProduct += vector1[i] * vector2[i];
 		}
 		return dotProduct;
+	}
+
+	/// <summary>
+	/// Generates the Laplacian matrix of the graph from the weights matrix.
+	/// </summary>
+	/// <param name="weightsMatrix">The weights matrix of the graph's edges.</param>
+	/// <returns>The Laplacian matrix of the graph.</returns>
+	private static Matrix<double> GenerateLaplacianMatrix(double[,] weightsMatrix)
+	{
+		int n = weightsMatrix.GetLength(0);
+		var weights = DenseMatrix.OfArray(weightsMatrix);
+
+		var degreeMatrix = DenseMatrix.CreateDiagonal(n, n, i => weights.Row(i).Sum());
+
+		return degreeMatrix - weights;
 	}
 }

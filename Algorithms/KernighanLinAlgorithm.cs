@@ -21,10 +21,10 @@ public class KernighanLinAlgorithm
 			partitions.Add(new List<int>());
 		}
 
-		List<int> nodes = Enumerable.Range(0, n).OrderBy(x => Guid.NewGuid()).ToList();
+		List<int> vertices = Enumerable.Range(0, n).OrderBy(x => Guid.NewGuid()).ToList();
 		for (int i = 0; i < n; i++)
 		{
-			partitions[i % k].Add(nodes[i]);
+			partitions[i % k].Add(vertices[i]);
 		}
 
 		Tuple<int, int, int, int> bestGainPair;
@@ -52,7 +52,7 @@ public class KernighanLinAlgorithm
 	/// <returns>A tuple with the nodes to swap and their partitions.</returns>
 	private static Tuple<int, int, int, int> GetBestGainPair(double[,] adjacencyMatrix, List<List<int>> partitions)
 	{
-		Tuple<int, int, int, int> bestGainPair = new Tuple<int, int, int, int>(-1, -1, -1, -1);
+		Tuple<int, int, int, int> bestGainPair = new(-1, -1, -1, -1);
 		int lowestCutEdges = CalculateTotalCutEdges(adjacencyMatrix, partitions);
 		for (int i = 0; i < partitions.Count; i++)
 		{

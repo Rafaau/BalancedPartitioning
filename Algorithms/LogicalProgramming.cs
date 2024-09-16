@@ -16,14 +16,13 @@ public class LogicalProgramming
 	/// <returns>Returns the partition matrix.</returns>
 	public static string Partition(double[,] adjacencyMatrix, int k, double[,] weightsMatrix = null)
 	{
-		GenerateFile(adjacencyMatrix, k, weightsMatrix);
-
-		string aspProgramPath = "C:/Users/kelo1/Desktop/Magisterka/balanced_partitioning_dynamic.lp";
+		string filePath = "C:/Users/kelo1/Desktop/Magisterka/balanced_partitioning_dynamic.lp";
+		GenerateFile(adjacencyMatrix, k, filePath, weightsMatrix);
 
 		ProcessStartInfo startInfo = new ProcessStartInfo
 		{
 			FileName = "D:/conda/Library/bin/clingo.exe", 
-			Arguments = $"{aspProgramPath}",
+			Arguments = $"{filePath}",
 			RedirectStandardOutput = true,
 			UseShellExecute = false,
 			CreateNoWindow = true
@@ -44,23 +43,22 @@ public class LogicalProgramming
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph</param>
 	/// <param name="weightsMatrix">The weights matrix of the graph</param>
-	private static void GenerateFile(double[,] adjacencyMatrix, int k, double[,] weightsMatrix = null)
+	private static void GenerateFile(double[,] adjacencyMatrix, int k, string filePath, double[,] weightsMatrix = null)
 	{
-		int vertices = adjacencyMatrix.GetLength(0);
+		int n = adjacencyMatrix.GetLength(0);
 		string aspProgram;
 
 		if (weightsMatrix != null)
 		{
 			List<(int, int, int)> edges = GenerateEdgesWithWeights(adjacencyMatrix, weightsMatrix);
-			aspProgram = GenerateAspProgramWeighted(vertices, edges, k);
+			aspProgram = GenerateAspProgramWeighted(n, edges, k);
 		}
 		else
 		{
 			List<(int, int)> edges = GenerateEdges(adjacencyMatrix);
-			aspProgram = GenerateAspProgram(vertices, edges, k);
+			aspProgram = GenerateAspProgram(n, edges, k);
 		}
 
-		var filePath = "C:/Users/kelo1/Desktop/Magisterka/balanced_partitioning_dynamic.lp";
 		File.WriteAllText(filePath, aspProgram);
 	}
 
@@ -152,15 +150,13 @@ part_size(P, S) :- S = #count {{ V : part(V, P) }}, k(K), P = 1..K.
 	/// <returns>Returns list of edges.</returns>
 	private static List<(int, int)> GenerateEdges(double[,] adjacencyMatrix)
 	{
-		var edges = new List<(int, int)>();
+		List<(int, int)> edges = new();
 		for (int i = 0; i < adjacencyMatrix.GetLength(0); i++)
 		{
 			for (int j = i + 1; j < adjacencyMatrix.GetLength(1); j++)
 			{
 				if (adjacencyMatrix[i, j] == 1)
-				{
 					edges.Add((i, j));
-				}
 			}
 		}
 		return edges;
@@ -174,15 +170,13 @@ part_size(P, S) :- S = #count {{ V : part(V, P) }}, k(K), P = 1..K.
 	/// <returns>Returns list of edges with weights.</returns>
 	private static List<(int, int, int)> GenerateEdgesWithWeights(double[,] adjacencyMatrix, double[,] weightsMatrix)
 	{
-		var edges = new List<(int, int, int)>();
+		List<(int, int, int)> edges = new();
 		for (int i = 0; i < adjacencyMatrix.GetLength(0); i++)
 		{
 			for (int j = i + 1; j < adjacencyMatrix.GetLength(1); j++)
 			{
 				if (adjacencyMatrix[i, j] == 1)
-				{
 					edges.Add((i, j, (int)weightsMatrix[i, j]));
-				}
 			}
 		}
 		return edges;

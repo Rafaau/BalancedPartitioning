@@ -9,49 +9,25 @@ namespace Algorithms;
 public class InertialAlgorithm
 {
 	/// <summary>
-	/// Partitions a graph into <paramref name="k"/> subsets using a greedy algorithm.
+	/// Partitions a graph into two subsets using a greedy algorithm.
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	/// <param name="weightsMatrix">The weights matrix of the graph.</param>
 	/// <returns>A serialized representation of the graph partitions.</returns>
 	public static string Partition(double[,] adjacencyMatrix, double[,] weightsMatrix)
 	{
-		List<List<int>> partitions = PerformInertialPartitioning(adjacencyMatrix, weightsMatrix);
-
-		return Common.Common.GetSerializedMatrix(partitions);
-	}
-
-	/// <summary>
-	/// Performs inertial partitioning on the graph.
-	/// </summary>
-	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
-	/// <param name="weightsMatrix">The weights matrix of the graph's edges.</param>
-	/// <returns>Returns the partitions as lists of vertex indices.</returns>
-	public static List<List<int>> PerformInertialPartitioning(double[,] adjacencyMatrix, double[,] weightsMatrix)
-	{
-		int n = adjacencyMatrix.GetLength(0);
-
-		var adjacency = DenseMatrix.OfArray(adjacencyMatrix);
-		var weights = DenseMatrix.OfArray(weightsMatrix);
-
-		var laplacianMatrix = GenerateLaplacianMatrix(weights);
+		var laplacianMatrix = GenerateLaplacianMatrix(weightsMatrix);
 
 		var eigen = laplacianMatrix.Evd();
 		var eigenvalues = eigen.EigenValues.Real();
 		var eigenvectors = eigen.EigenVectors;
 
-		int fiedlerIndex = FindTheSmallestEigenvalueIndex(eigenvalues);
+		int fiedlerIndex = FindSecondSmallestEigenvalueIndex(eigenvalues);
 		var fiedlerVector = eigenvectors.Column(fiedlerIndex);
 
-		Console.WriteLine("Fiedler Vector:");
-		for (int i = 0; i < fiedlerVector.Count; i++)
-		{
-			Console.WriteLine($"Vertex {i}: {fiedlerVector[i]}");
-		}
+		var partitions = PartitionVertices(fiedlerVector);
 
-		var partition = PartitionVertices(fiedlerVector);
-
-		return new List<List<int>> { partition.Item1.ToList(), partition.Item2.ToList() };
+		return Common.Common.GetSerializedMatrix(partitions);
 	}
 
 	/// <summary>
@@ -59,13 +35,14 @@ public class InertialAlgorithm
 	/// </summary>
 	/// <param name="weightsMatrix">The weights matrix of the graph's edges.</param>
 	/// <returns>The Laplacian matrix of the graph.</returns>
-	private static Matrix<double> GenerateLaplacianMatrix(Matrix<double> weightsMatrix)
+	private static Matrix<double> GenerateLaplacianMatrix(double[,] weightsMatrix)
 	{
-		int n = weightsMatrix.RowCount;
+		int n = weightsMatrix.GetLength(0);
+		var weights = DenseMatrix.OfArray(weightsMatrix);
 
-		var degreeMatrix = DenseMatrix.CreateDiagonal(n, n, i => weightsMatrix.Row(i).Sum());
+		var degreeMatrix = DenseMatrix.CreateDiagonal(n, n, i => weights.Row(i).Sum());
 
-		return degreeMatrix - weightsMatrix;
+		return degreeMatrix - weights;
 	}
 
 	/// <summary>
@@ -73,55 +50,53 @@ public class InertialAlgorithm
 	/// </summary>
 	/// <param name="fiedlerVector">The Fiedler vector obtained from the Laplacian matrix.</param>
 	/// <returns>A tuple containing two arrays of vertex indices representing the partitions.</returns>
-	private static Tuple<int[], int[]> PartitionVertices(Vector<double> fiedlerVector)
+	private static List<List<int>> PartitionVertices(Vector<double> fiedlerVector)
 	{
 		int n = fiedlerVector.Count;
-		var partition1 = new List<int>();
-		var partition2 = new List<int>();
+		List<int> partition1 = new();
+		List<int> partition2 = new();
 
-		var sortedValues = fiedlerVector.ToArray().OrderBy(v => v).ToArray();
+		var sortedValues = fiedlerVector.OrderBy(v => v).ToArray();
 		double median = sortedValues[n / 2];
 
 		for (int i = 0; i < n; i++)
 		{
 			double projection = fiedlerVector[i];
-			Console.WriteLine($"Vertex {i} Projection: {projection}");  // Debugging line
 
 			if (projection >= median)
-			{
 				partition1.Add(i);
-			}
 			else
-			{
 				partition2.Add(i);
-			}
 		}
 
-		Console.WriteLine("Partition 1 count: " + partition1.Count);
-		Console.WriteLine("Partition 2 count: " + partition2.Count);
-
-		return Tuple.Create(partition1.ToArray(), partition2.ToArray());
+		return new List<List<int>> { partition1, partition2 };
 	}
 
 	/// <summary>
-	/// Finds the index of the smallest eigenvalue in the vector of eigenvalues.
+	/// Finds the index of the second smallest eigenvalue in the vector of eigenvalues.
 	/// </summary>
 	/// <param name="eigenvalues">The vector of eigenvalues of the Laplacian matrix.</param>
-	/// <returns>The index of the smallest eigenvalue.</returns>
-	private static int FindTheSmallestEigenvalueIndex(Vector<double> eigenvalues)
+	/// <returns>The index of the second smallest eigenvalue.</returns>
+	private static int FindSecondSmallestEigenvalueIndex(Vector<double> eigenvalues)
 	{
 		double min = double.MaxValue;
-		int index = -1;
+		double secondMin = double.MaxValue;
+		int secondMinIndex = -1;
 
 		for (int i = 0; i < eigenvalues.Count; i++)
 		{
 			if (eigenvalues[i] < min)
 			{
+				secondMin = min;
 				min = eigenvalues[i];
-				index = i;
+			}
+			else if (eigenvalues[i] < secondMin && eigenvalues[i] != min)
+			{
+				secondMin = eigenvalues[i];
+				secondMinIndex = i;
 			}
 		}
 
-		return index;
+		return secondMinIndex;
 	}
 }

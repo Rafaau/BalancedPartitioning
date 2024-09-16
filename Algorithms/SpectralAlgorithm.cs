@@ -15,18 +15,32 @@ public static class SpectralAlgorithm
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	public static string Partition(double[,] adjacencyMatrix)
 	{
-		Matrix<double> A = DenseMatrix.OfArray(adjacencyMatrix);
-		Matrix<double> D = DenseMatrix.CreateDiagonal(A.RowCount, A.ColumnCount, i => A.Row(i).Sum());
-		Matrix<double> Q = D - A;
+		var laplacianMatrix = GenerateLaplacianMatrix(adjacencyMatrix);
 
-		var evd = Q.Evd();
-		Vector<double> eigenvalues = evd.EigenValues.Real();
-		Matrix<double> eigenvectors = evd.EigenVectors;
+		var eigen = laplacianMatrix.Evd();
+		var eigenvalues = eigen.EigenValues.Real();
+		var eigenvectors = eigen.EigenVectors;
 
-		int secondSmallestIndex = FindSecondSmallestIndex(eigenvalues);
-		Vector<double> x2 = eigenvectors.Column(secondSmallestIndex);
+		int fiedlerIndex = FindSecondSmallestIndex(eigenvalues);
+		var fiedlerVector = eigenvectors.Column(fiedlerIndex);
 
-		return PartitionGraphORTools(x2);
+		var partitions = PartitionGraphORTools(fiedlerVector);
+
+		return Common.Common.GetSerializedMatrix(partitions);
+	}
+
+	/// <summary>
+	/// Generates the Laplacian matrix of the graph from the adjacency matrix.
+	/// </summary>
+	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
+	/// <returns>The Laplacian matrix of the graph.</returns>
+	private static Matrix<double> GenerateLaplacianMatrix(double[,] adjacencyMatrix)
+	{
+		int n = adjacencyMatrix.GetLength(0);
+		var adjacency = DenseMatrix.OfArray(adjacencyMatrix);
+		var degreeMatrix = DenseMatrix.CreateDiagonal(n, n, i => adjacency.Row(i).Sum());
+
+		return degreeMatrix - adjacency;
 	}
 
 	/// <summary>
@@ -60,12 +74,12 @@ public static class SpectralAlgorithm
 	/// <summary>
 	/// Partitions the graph using OR-Tools.
 	/// </summary>
-	/// <param name="x2">Second smallest eigenvector.</param>
+	/// <param name="fiedlerVector">Second smallest eigenvector.</param>
 	/// <returns>Returns the partitioned graph<./returns>
 	/// <exception cref="Exception">Thrown when no solution is found.</exception>
-	private static string PartitionGraphORTools(Vector<double> x2)
+	private static List<List<int>> PartitionGraphORTools(Vector<double> fiedlerVector)
 	{
-		int n = x2.Count;
+		int n = fiedlerVector.Count;
 
 		Solver solver = Solver.CreateSolver("SCIP");
 
@@ -92,7 +106,7 @@ public static class SpectralAlgorithm
 		{
 			for (int j = 0; j < n; j++)
 			{
-				objective.SetCoefficient(x[i], x2[i] * x2[j]);
+				objective.SetCoefficient(x[i], fiedlerVector[i] * fiedlerVector[j]);
 			}
 		}
 		objective.SetMinimization();
@@ -101,18 +115,18 @@ public static class SpectralAlgorithm
 
 		if (resultStatus == Solver.ResultStatus.OPTIMAL)
 		{
-			List<int> partitionA = new();
-			List<int> partitionB = new();
+			List<int> partition1 = new();
+			List<int> partition2 = new();
 
 			for (int i = 0; i < n; i++)
 			{
 				if (x[i].SolutionValue() == -1)
-					partitionA.Add(i);
+					partition1.Add(i);
 				else
-					partitionB.Add(i);
+					partition2.Add(i);
 			}
 
-			return Common.Common.GetSerializedMatrix(new List<List<int>>() { partitionA, partitionB });
+			return new List<List<int>> { partition1, partition2 };
 		}
 		else
 		{

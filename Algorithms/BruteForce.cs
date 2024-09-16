@@ -6,34 +6,21 @@
 public class BruteForce
 {
 	/// <summary>
-	/// Partitions a graph into <paramref name="k"/> subsets using a greedy algorithm.
-	/// </summary>
-	/// <param name="adjacencyMatrix">Adjacency matrix of the graph.</param>
-	/// <param name="k">Amount of partitions.</param>
-	/// <returns>Returns the partitioned graph.</returns>
-	public static string Partition(double[,] adjacencyMatrix, int k = 2)
-	{
-		var bestPartitionMatrix = BruteForceBalancedPartition(adjacencyMatrix, k);
-
-		return Common.Common.SerializeMatrix(bestPartitionMatrix);
-	}
-
-	/// <summary>
 	/// Generates all possible partitions and returns the one with the minimum number of cut edges.
 	/// </summary>
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	/// <param name="k">The number of partitions.</param>
 	/// <returns>Returns the partitioned graph.</returns>
-	private static double[,] BruteForceBalancedPartition(double[,] adjacencyMatrix, int k)
+	public static string Partition(double[,] adjacencyMatrix, int k = 2)
 	{
 		int n = adjacencyMatrix.GetLength(0);
-		List<int> vertices = new List<int>(Enumerable.Range(0, n));
+		List<int> vertices = new(Enumerable.Range(0, n));
 		int minCutEdges = int.MaxValue;
 		List<List<int>> bestPartition = null;
 
 		foreach (var partition in GeneratePartitions(vertices, k))
 		{
-			int cutEdges = CalculateCutEdges(adjacencyMatrix, partition);
+			int cutEdges = CalculateTotalCutEdges(adjacencyMatrix, partition);
 			if (cutEdges < minCutEdges)
 			{
 				minCutEdges = cutEdges;
@@ -55,7 +42,7 @@ public class BruteForce
 			}
 		}
 
-		return partitionMatrix;
+		return Common.Common.SerializeMatrix(partitionMatrix);
 	}
 
 	/// <summary>
@@ -76,16 +63,16 @@ public class BruteForce
 	/// <param name="adjacencyMatrix">The adjacency matrix of the graph.</param>
 	/// <param name="partition">The partition of the graph.</param>
 	/// <returns>The number of cut edges.</returns>
-	private static int CalculateCutEdges(double[,] adjacencyMatrix, List<List<int>> partition)
+	private static int CalculateTotalCutEdges(double[,] adjacencyMatrix, List<List<int>> partitions)
 	{
 		int cutEdges = 0;
-		for (int i = 0; i < partition.Count; i++)
+		for (int i = 0; i < partitions.Count; i++)
 		{
-			for (int j = i + 1; j < partition.Count; j++)
+			for (int j = i + 1; j < partitions.Count; j++)
 			{
-				foreach (int u in partition[i])
+				foreach (var u in partitions[i])
 				{
-					foreach (int v in partition[j])
+					foreach (var v in partitions[j])
 					{
 						if (adjacencyMatrix[u, v] != 0)
 						{
@@ -109,7 +96,7 @@ public class BruteForce
 		List<List<int>> partitions = new();
 		for (int i = 0; i < k; i++)
 		{
-			partitions.Add(new List<int>());
+			partitions.Add(new());
 		}
 
 		foreach (var p in Backtrack(vertices, partitions, k, 0))
@@ -131,9 +118,8 @@ public class BruteForce
 		if (index == vertices.Count)
 		{
 			if (IsBalancedPartition(partition))
-			{
 				yield return partition.Select(subset => subset.ToList()).ToList();
-			}
+
 			yield break;
 		}
 

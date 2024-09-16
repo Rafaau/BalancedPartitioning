@@ -10,17 +10,17 @@ public static class Common
 	/// <summary>
 	/// Generates a random adjacency matrix for a graph.
 	/// </summary>
-	/// <param name="numVertices">Number of vertices.</param>
+	/// <param name="n">Number of vertices.</param>
 	/// <param name="maxEdgesPerVertex">Maximum edges per vertex.</param>
 	/// <returns>Returns a random adjacency matrix.</returns>
-	public static double[,] GenerateRandomAdjacencyMatrix(int numVertices, int maxEdgesPerVertex)
+	public static double[,] GenerateRandomAdjacencyMatrix(int n, int maxEdgesPerVertex)
 	{
 		Random rand = new Random();
-		double[,] adjacencyMatrix = new double[numVertices, numVertices];
-		int[] edgesCount = new int[numVertices];
+		double[,] adjacencyMatrix = new double[n, n];
+		int[] edgesCount = new int[n];
 		HashSet<int> oneEdgeNeighbors = new HashSet<int>();
 
-		for (int i = 0; i < numVertices; i++)
+		for (int i = 0; i < n; i++)
 		{
 			int edgesToAdd;
 
@@ -38,7 +38,7 @@ public static class Common
 				int neighbor;
 				do
 				{
-					neighbor = rand.Next(numVertices);
+					neighbor = rand.Next(n);
 				} while (neighbor == i || adjacencyMatrix[i, neighbor] == 1 || edgesCount[neighbor] >= maxEdgesPerVertex);
 
 				adjacencyMatrix[i, neighbor] = 1;
@@ -67,13 +67,13 @@ public static class Common
 	/// <returns>Returns a random weighted adjacency matrix.</returns>
 	public static double[,] GenerateRandomWeightedAdjacencyMatrix(double[,] adjacencyMatrix, double minWeight, double maxWeight)
 	{
-		int numVertices = adjacencyMatrix.GetLength(0);
+		int n = adjacencyMatrix.GetLength(0);
 		Random rand = new Random();
-		double[,] weightedAdjacencyMatrix = new double[numVertices, numVertices];
+		double[,] weightedAdjacencyMatrix = new double[n, n];
 
-		for (int i = 0; i < numVertices; i++)
+		for (int i = 0; i < n; i++)
 		{
-			for (int j = i + 1; j < numVertices; j++)
+			for (int j = i + 1; j < n; j++)
 			{
 				if (adjacencyMatrix[i, j] == 1)
 				{
